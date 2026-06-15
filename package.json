@@ -6,7 +6,11 @@
   "scripts": {
     "start": "node server.js",
     "dev": "node --watch server.js",
-    "prepare": "git config core.hooksPath .githooks || true"
+    "format": "prettier --write .",
+    "prepare": "husky"
+  },
+  "lint-staged": {
+    "*.{js,json,md}": "prettier --write"
   },
   "engines": {
     "node": ">=18"
@@ -15,5 +19,12 @@
     "express": "^4.19.2",
     "pg": "^8.12.0"
   },
-  "license": "MIT"
+  "license": "MIT",
+  "devDependencies": {
+    "@commitlint/cli": "^21.0.2",
+    "@commitlint/config-conventional": "^21.0.2",
+    "husky": "^9.1.7",
+    "lint-staged": "^16.4.0",
+    "prettier": "^3.8.4"
+  }
 }
