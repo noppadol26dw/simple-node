@@ -1,0 +1,27 @@
+#!/bin/sh
+#
+# Syntax-check staged JavaScript files before allowing a commit.
+
+# List staged .js files that are added/copied/modified.
+staged_js=$(git diff --cached --name-only --diff-filter=ACM | grep '\.js$')
+
+[ -z "$staged_js" ] && exit 0
+
+failed=0
+for file in $staged_js; do
+  # Only check files that still exist in the working tree.
+  [ -f "$file" ] || continue
+  if ! node --check "$file"; then
+    echo "  ✖ Syntax error in: $file"
+    failed=1
+  fi
+done
+
+if [ "$failed" -ne 0 ]; then
+  echo "----------------------------------------------------------------------"
+  echo "  Commit aborted: fix the syntax errors above."
+  echo "----------------------------------------------------------------------"
+  exit 1
+fi
+
+exit 0
