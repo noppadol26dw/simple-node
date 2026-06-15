@@ -4,25 +4,27 @@ A small REST API built with **Express** and backed by **Postgres**.
 It exposes CRUD endpoints for a `books` resource and is packaged to run
 with Docker / docker-compose.
 
-## API
+## Tech stack
 
-| Method | Path         | Description        |
-| ------ | ------------ | ------------------ |
-| GET    | `/`          | Service info       |
-| GET    | `/health`    | Liveness + DB check |
-| GET    | `/books`     | List all books     |
-| GET    | `/books/:id` | Get one book       |
-| POST   | `/books`     | Create a book      |
-| PUT    | `/books/:id` | Replace a book     |
-| DELETE | `/books/:id` | Delete a book      |
+Node.js 18+, [Express](https://expressjs.com) 5, [node-postgres (`pg`)](https://node-postgres.com).
 
-Book shape:
+## Getting started
 
-```json
-{ "title": "string (required)", "author": "string (required)", "year": 2020 }
+### Run locally (without Docker)
+
+Requires Node 18+ and a running Postgres.
+
+```bash
+npm install
+cp .env.example .env          # adjust DB settings as needed
+psql -d books -f db/init.sql  # create the schema
+npm start
 ```
 
-## Run with Docker (recommended)
+### Run with Docker
+
+> This repo ships `Dockerfile.sample` as a reference, not a working
+> `Dockerfile`. Create the real `Dockerfile` at the repo root first.
 
 Brings up the API **and** Postgres together, seeded with sample data:
 
@@ -45,34 +47,49 @@ Tear down (add `-v` to also wipe the database volume):
 docker compose down
 ```
 
-## Build just the image
+### Build just the image
 
 ```bash
 docker build -t simple-node .
 ```
 
-The image is a multi-stage build running as a non-root user. It needs a
-reachable Postgres — configure it via the `DB_*` environment variables
-(see `.env.example`).
+The image needs a reachable Postgres — configure it via the `DB_*` environment
+variables (see `.env.example`).
 
-## Run locally without Docker
+## API
 
-Requires Node 18+ and a running Postgres.
+| Method | Path         | Description         |
+| ------ | ------------ | ------------------- |
+| GET    | `/`          | Service info        |
+| GET    | `/health`    | Liveness + DB check |
+| GET    | `/books`     | List all books      |
+| GET    | `/books/:id` | Get one book        |
+| POST   | `/books`     | Create a book       |
+| PUT    | `/books/:id` | Replace a book      |
+| DELETE | `/books/:id` | Delete a book       |
 
-```bash
-npm install
-cp .env.example .env   # adjust DB settings as needed
-psql -d books -f db/init.sql   # create the schema
-npm start
+Book shape:
+
+```json
+{ "title": "string (required)", "author": "string (required)", "year": 2020 }
 ```
 
 ## Configuration
 
-| Variable      | Default     | Description          |
-| ------------- | ----------- | -------------------- |
-| `PORT`        | `3000`      | HTTP port            |
-| `DB_HOST`     | `localhost` | Postgres host        |
-| `DB_PORT`     | `5432`      | Postgres port        |
-| `DB_USER`     | `postgres`  | Postgres user        |
-| `DB_PASSWORD` | `postgres`  | Postgres password    |
-| `DB_NAME`     | `books`     | Postgres database    |
+| Variable      | Default     | Description       |
+| ------------- | ----------- | ----------------- |
+| `PORT`        | `3000`      | HTTP port         |
+| `DB_HOST`     | `localhost` | Postgres host     |
+| `DB_PORT`     | `5432`      | Postgres port     |
+| `DB_USER`     | `postgres`  | Postgres user     |
+| `DB_PASSWORD` | `postgres`  | Postgres password |
+| `DB_NAME`     | `books`     | Postgres database |
+
+## Scripts
+
+| Command                | Description                               |
+| ---------------------- | ----------------------------------------- |
+| `npm start`            | Start the server                          |
+| `npm run dev`          | Start with auto-reload (`node --watch`)   |
+| `npm run format`       | Format the whole project with Prettier    |
+| `npm run format:check` | Check formatting without writing (for CI) |

@@ -2,7 +2,7 @@ services:
   api:
     build: .
     ports:
-      - "3000:3000"
+      - '3000:3000'
     environment:
       PORT: 3000
       DB_HOST: db
@@ -21,13 +21,13 @@ services:
       POSTGRES_PASSWORD: postgres
       POSTGRES_DB: books
     ports:
-      - "5432:5432"
+      - '5432:5432'
     volumes:
       - db_data:/var/lib/postgresql/data
       # Seed schema + sample rows on first startup.
       - ./db/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres -d books"]
+      test: ['CMD-SHELL', 'pg_isready -U postgres -d books']
       interval: 5s
       timeout: 5s
       retries: 5

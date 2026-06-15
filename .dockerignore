@@ -5,3 +5,11 @@ npm-debug.log
 .DS_Store
 .env
 *.md
+
+# Dev-only tooling — not needed in the runtime image
+.husky
+commitlint.config.js
+.prettierrc.json
+.prettierignore
+Dockerfile.sample
+docker-compose.yml
