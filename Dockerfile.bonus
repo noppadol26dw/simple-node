@@ -1,0 +1,7 @@
+FROM --platform=arm64 node:26.3.0-alpine@sha256:9c0e1e52125d6b67d505cf75b4880fcf1290ccea5c480849910e1d57b2cf72b5
+WORKDIR /app 
+COPY package*.json /app
+RUN npm install
+COPY . .
+EXPOSE 3000
+CMD [ "node","server.js" ]
