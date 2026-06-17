@@ -93,7 +93,7 @@ Book shape:
 
 ## DevOps teaching stack
 
-Three Compose lessons layered on this app. Each command is one concept.
+Docker Compose lessons layered on this app.
 
 | What                    | Command                                                    | Teaches                                                                                                          |
 | ----------------------- | ---------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
@@ -102,7 +102,7 @@ Three Compose lessons layered on this app. Each command is one concept.
 | Reverse proxy + scaling | `docker compose -f docker-compose.yml up -d --scale api=3` | nginx (`:8080`) round-robins 3 replicas; `curl -I localhost:8080` → the `X-Served-By` header changes per request |
 | Observability           | `docker compose --profile observability up`                | Prometheus (`:9090`) + Grafana (`:3001`) — opt-in via `profiles:`                                                |
 
-Run the full stack — 3 API replicas, metrics, and dashboards — with one command:
+Run the full stack with 3 API replicas, metrics, and dashboards:
 
 ```bash
 docker compose -f docker-compose.yml --profile observability up -d --scale api=3

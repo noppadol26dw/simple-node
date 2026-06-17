@@ -1,9 +1,8 @@
 # DevOps teaching guide
 
-A hands-on tour of Docker Compose, built on the Books API. Four lessons, each
-adds one real-world capability. Run them in order — every command is copy-paste.
+Four Docker Compose lessons built on the Books API. Run them in order.
 
-Prerequisites: Docker Desktop (or Docker Engine + Compose v2). Nothing else.
+Requires Docker Engine + Compose v2.
 
 The stack:
 
@@ -49,8 +48,8 @@ curl localhost:8080/health        # works — traffic goes through nginx
 docker compose -f docker-compose.yml down
 ```
 
-**Takeaway:** one base file describes production; the override layers on dev
-conveniences. Passing `-f docker-compose.yml` opts out of the override.
+The base file describes production; the override layers on dev conveniences.
+`-f docker-compose.yml` opts out of the override.
 
 ---
 
@@ -74,16 +73,14 @@ How it works (`nginx/nginx.conf`): a variable in `proxy_pass` plus Docker's
 embedded DNS resolver (`127.0.0.11`) forces nginx to re-resolve the `api`
 service name on a timer, so it round-robins across whatever replicas exist.
 
-**Gotcha worth teaching:** scaling needs the base file. The dev override
-publishes `:3000`, and a published host port can only map to one container —
-so `--scale api=3` fails while the override is active.
+Scaling needs the base file: the dev override publishes `:3000`, and a host
+port maps to one container, so `--scale api=3` fails while it's active.
 
 ---
 
 ## Lesson 3 — Observability (Prometheus + Grafana)
 
-Metrics, scraping, and dashboards are opt-in via a Compose **profile**, so the
-core stack stays lean until you ask for them.
+Metrics, scraping, and dashboards are opt-in via a Compose `profile`.
 
 ```bash
 docker compose -f docker-compose.yml --profile observability up -d --scale api=3
@@ -115,11 +112,10 @@ up{job="api"}                                  # 1 per healthy replica
 sum by (instance) (rate(http_requests_total[1m]))   # per-replica traffic
 ```
 
-### Grafana, pre-wired
+### Grafana
 
-http://localhost:3001 — no login (anonymous admin, demo only). The Prometheus
-datasource and the dashboard are **provisioned from files**
-(`grafana/provisioning/`), so there's nothing to click through.
+http://localhost:3001 — no login (anonymous admin, demo only). The datasource
+and dashboard are provisioned from `grafana/provisioning/`.
 
 ---
 
@@ -138,8 +134,7 @@ pg_database_size_bytes{datname="books"}        # database size
 
 ## The dashboard
 
-**http://localhost:3001/d/system-overview** — one pane for the whole stack,
-auto-provisioned. Four rows:
+**http://localhost:3001/d/system-overview** — four rows:
 
 | Row          | Panels                                                            |
 | ------------ | ----------------------------------------------------------------- |
@@ -155,8 +150,8 @@ for i in $(seq 1 200); do curl -s -o /dev/null localhost:8080/books; done
 for i in $(seq 1 20);  do curl -s -o /dev/null localhost:8080/nope;  done   # 404s
 ```
 
-The "request rate by replica" panel shows the load splitting three ways; the
-error-rate panel ticks up from the 404s.
+"Request rate by replica" splits three ways; the error-rate panel reflects the
+404s.
 
 ---
 
@@ -166,8 +161,8 @@ error-rate panel ticks up from the 404s.
 docker compose -f docker-compose.yml --profile observability down -v
 ```
 
-`-v` removes the named volumes (Postgres data). Grafana keeps no volume — its
-config is provisioned from files, so it boots clean every time.
+`-v` removes the Postgres data volume. Grafana keeps no volume; its config is
+provisioned from files.
 
 ---
 
