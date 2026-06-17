@@ -4,8 +4,9 @@ const db = require('./src/db');
 const PORT = parseInt(process.env.PORT || '3000', 10);
 
 async function start() {
-  // Wait for Postgres before accepting traffic.
-  await db.waitForDb();
+  // Confirm Postgres is reachable before accepting traffic. Startup ordering
+  // is handled by docker-compose's `depends_on: service_healthy`.
+  await db.query('SELECT 1');
 
   const server = app.listen(PORT, () => {
     console.log(`Server running on http://localhost:${PORT}`);
