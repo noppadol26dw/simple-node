@@ -20,22 +20,4 @@ function query(text, params) {
   return pool.query(text, params);
 }
 
-// Retry the first connection a few times: in docker-compose the app
-// container usually starts before Postgres is ready to accept connections.
-async function waitForDb(retries = 10, delayMs = 1500) {
-  for (let attempt = 1; attempt <= retries; attempt++) {
-    try {
-      await pool.query('SELECT 1');
-      console.log('Connected to Postgres');
-      return;
-    } catch (err) {
-      console.log(
-        `Postgres not ready (attempt ${attempt}/${retries}): ${err.code || err.message}`
-      );
-      if (attempt === retries) throw err;
-      await new Promise((resolve) => setTimeout(resolve, delayMs));
-    }
-  }
-}
-
-module.exports = { query, waitForDb, pool };
+module.exports = { query, pool };
