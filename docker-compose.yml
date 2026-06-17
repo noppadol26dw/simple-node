@@ -12,8 +12,8 @@ services:
 
   api:
     build: .
-    # No host port on purpose: traffic enters through nginx, and leaving the
-    # port unpublished is what lets `--scale api=N` run many replicas at once.
+    # No host port: traffic enters through nginx, and leaving it unpublished
+    # is what lets `--scale api=N` run multiple replicas.
     environment:
       PORT: 3000
       DB_HOST: db
@@ -51,8 +51,7 @@ services:
     ports:
       - '9090:9090'
 
-  # Translates Postgres internals into Prometheus metrics (connections,
-  # commits/rollbacks, cache hit ratio, db size). Standard community exporter.
+  # Exposes Postgres metrics to Prometheus.
   postgres-exporter:
     image: quay.io/prometheuscommunity/postgres-exporter:latest # pin in real projects
     profiles: [observability]
@@ -68,13 +67,12 @@ services:
     ports:
       - '3001:3000'
     environment:
-      # Anonymous admin so the jr lands straight on dashboards — demo only.
+      # Anonymous admin, demo only.
       GF_AUTH_ANONYMOUS_ENABLED: 'true'
       GF_AUTH_ANONYMOUS_ORG_ROLE: Admin
       GF_AUTH_DISABLE_LOGIN_FORM: 'true'
-    # No data volume: datasource + dashboards are provisioned from files, so
-    # Grafana can boot fresh every time (and changing a provisioned uid won't
-    # clash with stale persisted state).
+    # No data volume: datasource + dashboards are provisioned from files, so a
+    # pinned datasource uid can't clash with stale persisted state.
     volumes:
       - ./grafana/provisioning:/etc/grafana/provisioning:ro
     depends_on:
