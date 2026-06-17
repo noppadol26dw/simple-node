@@ -25,7 +25,10 @@ app.use((req, res, next) => {
   res.setHeader('X-Served-By', os.hostname());
   res.on('finish', () => {
     console.log(`${req.method} ${req.url} -> ${res.statusCode}`);
-    httpRequests.inc({ method: req.method, status: res.statusCode });
+    // Don't count scrapes of /metrics, or the request rate is all scrape noise.
+    if (req.path !== '/metrics') {
+      httpRequests.inc({ method: req.method, status: res.statusCode });
+    }
   });
   next();
 });
