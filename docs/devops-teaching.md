@@ -98,6 +98,9 @@ counter labelled by method and status.
 curl localhost:8080/metrics | grep http_requests_total
 ```
 
+Here `/metrics` is reachable through nginx for convenience. In production you'd
+scrape it on the internal network only, not expose it at the public edge.
+
 ### Prometheus discovers every replica
 
 `prometheus/prometheus.yml` uses `dns_sd_configs` against the `api` service
