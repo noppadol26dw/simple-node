@@ -1,0 +1,21 @@
+# Auto-loaded by `docker compose up` — local development conveniences only.
+# Run the prod-like stack (no overrides) with:
+#   docker compose -f docker-compose.yml up
+services:
+  api:
+    # Live reload: mount source over the image and let node watch it.
+    # Only src + server.js are mounted, so the image's node_modules stay intact.
+    volumes:
+      - ./src:/app/src
+      - ./server.js:/app/server.js
+    command: node --watch server.js
+    environment:
+      NODE_ENV: development
+    ports:
+      - '3000:3000' # hit the API directly, bypassing nginx
+      # NOTE: a published port pins one host port, so you can't `--scale api`
+      # while this override is active. Scale with the base file only.
+
+  db:
+    ports:
+      - '5432:5432' # connect a local SQL client during development

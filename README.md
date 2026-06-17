@@ -23,9 +23,6 @@ npm start
 
 ### Run with Docker
 
-> This repo ships `Dockerfile.sample` as a reference, not a working
-> `Dockerfile`. Create the real `Dockerfile` at the repo root first.
-
 Brings up the API **and** Postgres together, seeded with sample data:
 
 ```bash
@@ -93,3 +90,34 @@ Book shape:
 | `npm run dev`          | Start with auto-reload (`node --watch`)   |
 | `npm run format`       | Format the whole project with Prettier    |
 | `npm run format:check` | Check formatting without writing (for CI) |
+
+## DevOps teaching stack
+
+Three Compose lessons layered on this app. Each command is one concept.
+
+| What                    | Command                                                    | Teaches                                                                                                          |
+| ----------------------- | ---------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| Dev (default)           | `docker compose up`                                        | `override.yml` auto-loads: bind-mount + `node --watch`, ports for api (`:3000`) and db (`:5432`)                 |
+| Prod-like               | `docker compose -f docker-compose.yml up`                  | base only — api hidden behind nginx, no dev ports                                                                |
+| Reverse proxy + scaling | `docker compose -f docker-compose.yml up -d --scale api=3` | nginx (`:8080`) round-robins 3 replicas; `curl -I localhost:8080` → the `X-Served-By` header changes per request |
+| Observability           | `docker compose --profile observability up`                | Prometheus (`:9090`) + Grafana (`:3001`) — opt-in via `profiles:`                                                |
+
+Run the full stack — 3 API replicas, metrics, and dashboards — with one command:
+
+```bash
+docker compose -f docker-compose.yml --profile observability up -d --scale api=3
+```
+
+| Service    | URL                                     | What it shows                             |
+| ---------- | --------------------------------------- | ----------------------------------------- |
+| API        | http://localhost:8080                   | load-balanced across replicas via nginx   |
+| Prometheus | http://localhost:9090                   | scrape targets + PromQL                   |
+| Grafana    | http://localhost:3001/d/system-overview | one dashboard: traffic, runtime, Postgres |
+
+- nginx re-resolves `api` via Docker DNS (`nginx/nginx.conf`) so scaled replicas join without a reload.
+- Prometheus uses `dns_sd_configs` (`prometheus/prometheus.yml`) — one scrape target per replica, plus a static `postgres` job for the exporter.
+- Grafana's datasource **and** the System Overview dashboard are auto-provisioned (`grafana/provisioning/`); anonymous admin is on (demo only).
+
+> Scaling needs the base file (no published api host port). The dev `override.yml` publishes `:3000`, which pins one host port and blocks `--scale`.
+
+**Full walkthrough:** [docs/devops-teaching.md](docs/devops-teaching.md) — lesson-by-lesson, with what to observe at each step.

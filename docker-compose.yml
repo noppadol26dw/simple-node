@@ -1,8 +1,19 @@
 services:
+  # Reverse proxy + load balancer. Only this service is published; the API
+  # sits on the internal network. Scale with: --scale api=3
+  nginx:
+    image: nginx:1.27-alpine
+    ports:
+      - '8080:80'
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+    depends_on:
+      - api
+
   api:
     build: .
-    ports:
-      - '3000:3000'
+    # No host port on purpose: traffic enters through nginx, and leaving the
+    # port unpublished is what lets `--scale api=N` run many replicas at once.
     environment:
       PORT: 3000
       DB_HOST: db
@@ -20,8 +31,6 @@ services:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
       POSTGRES_DB: books
-    ports:
-      - '5432:5432'
     volumes:
       - db_data:/var/lib/postgresql/data
       # Seed schema + sample rows on first startup.
@@ -31,6 +40,45 @@ services:
       interval: 5s
       timeout: 5s
       retries: 5
+
+  # --- Observability (opt-in) -------------------------------------------
+  # Start with: docker compose --profile observability up
+  prometheus:
+    image: prom/prometheus:latest # pin a version for real projects
+    profiles: [observability]
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    ports:
+      - '9090:9090'
+
+  # Translates Postgres internals into Prometheus metrics (connections,
+  # commits/rollbacks, cache hit ratio, db size). Standard community exporter.
+  postgres-exporter:
+    image: quay.io/prometheuscommunity/postgres-exporter:latest # pin in real projects
+    profiles: [observability]
+    environment:
+      DATA_SOURCE_NAME: 'postgresql://postgres:postgres@db:5432/books?sslmode=disable'
+    depends_on:
+      db:
+        condition: service_healthy
+
+  grafana:
+    image: grafana/grafana:latest # pin a version for real projects
+    profiles: [observability]
+    ports:
+      - '3001:3000'
+    environment:
+      # Anonymous admin so the jr lands straight on dashboards — demo only.
+      GF_AUTH_ANONYMOUS_ENABLED: 'true'
+      GF_AUTH_ANONYMOUS_ORG_ROLE: Admin
+      GF_AUTH_DISABLE_LOGIN_FORM: 'true'
+    # No data volume: datasource + dashboards are provisioned from files, so
+    # Grafana can boot fresh every time (and changing a provisioned uid won't
+    # clash with stale persisted state).
+    volumes:
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+    depends_on:
+      - prometheus
 
 volumes:
   db_data:

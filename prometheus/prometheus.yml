@@ -1,0 +1,18 @@
+global:
+  scrape_interval: 5s
+
+scrape_configs:
+  # DNS service discovery: the 'api' service name resolves to one A record
+  # per running replica, so scaling the API automatically adds scrape targets.
+  # Each replica gets its own `instance` label → per-replica metrics.
+  - job_name: api
+    metrics_path: /metrics
+    dns_sd_configs:
+      - names: [api]
+        type: A
+        port: 3000
+
+  # Single static target — one exporter for the one database.
+  - job_name: postgres
+    static_configs:
+      - targets: [postgres-exporter:9187]
