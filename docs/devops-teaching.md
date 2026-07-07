@@ -158,6 +158,33 @@ for i in $(seq 1 20);  do curl -s -o /dev/null localhost:8080/nope;  done   # 40
 
 ---
 
+## Lesson 5 — Load testing with k6
+
+The curl loops above nudge the dashboard; [k6](https://k6.io) drives real
+concurrent load and reports latency percentiles and error rates.
+
+`load-test.js` ramps to 1000 virtual users, hitting `GET /books` every
+iteration with a 20% chance of a `POST /books`. It targets the nginx edge, so
+load spreads across all `api` replicas.
+
+```bash
+docker compose -f docker-compose.yml --profile observability up -d --scale api=3
+k6 run load-test.js                                  # or: -e BASE_URL=http://localhost:8080
+```
+
+Two `thresholds` make the run pass/fail: `<1%` errors and `p95 < 500ms`. k6
+exits non-zero if either breaks — useful in CI.
+
+Watch the Grafana dashboard while it runs: request rate climbs, splits three
+ways across replicas, and event-loop lag / Postgres connections react to the
+pressure.
+
+At 1000 VUs the bottleneck is usually *not* the app: raise the client's file
+descriptor limit (`ulimit -n 65535`) and remember the Postgres pool caps
+connections well below 1000, so writes queue there first.
+
+---
+
 ## Teardown
 
 ```bash
@@ -177,4 +204,5 @@ provisioned from files.
 | Prod-like               | `docker compose -f docker-compose.yml up`                                          |
 | Scale the API           | `docker compose -f docker-compose.yml up -d --scale api=3`                         |
 | Full stack + monitoring | `docker compose -f docker-compose.yml --profile observability up -d --scale api=3` |
+| Load test (1000 VUs)    | `k6 run load-test.js`                                                              |
 | Tear everything down    | `docker compose -f docker-compose.yml --profile observability down -v`             |
