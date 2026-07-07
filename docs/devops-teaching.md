@@ -1,0 +1,208 @@
+# DevOps teaching guide
+
+Four Docker Compose lessons built on the Books API. Run them in order.
+
+Requires Docker Engine + Compose v2.
+
+The stack:
+
+```
+            :8080                    :9090            :3001
+        ┌─────────┐   round-robin  ┌──────────┐   ┌─────────┐
+client →│  nginx  │──┬─→ api ×N ──→│ postgres │   │ grafana │
+        └─────────┘  │             └──────────┘   └─────────┘
+                     ├─→ api            ↑ db            ↑ datasource
+                     └─→ api      ┌────────────┐   ┌──────────┐
+                                  │ pg-exporter│←──│prometheus│──→ scrapes api + pg
+                                  └────────────┘   └──────────┘
+```
+
+---
+
+## Lesson 1 — Dev vs prod with override files
+
+Compose automatically merges `docker-compose.yml` (base) with
+`docker-compose.override.yml` when you run plain `docker compose up`.
+
+```bash
+docker compose up -d
+```
+
+The override adds **development-only** behaviour on top of the base:
+
+- bind-mounts `./src` and `server.js` into the container
+- swaps the start command to `node --watch` (live reload)
+- publishes `api` on `:3000` and `db` on `:5432` for direct access
+
+```bash
+curl localhost:3000/health        # api reachable directly in dev
+docker compose down
+```
+
+Now run the **base only** — the production-like topology:
+
+```bash
+docker compose -f docker-compose.yml up -d
+curl localhost:3000/health        # FAILS: no published port in prod
+curl localhost:8080/health        # works — traffic goes through nginx
+docker compose -f docker-compose.yml down
+```
+
+The base file describes production; the override layers on dev conveniences.
+`-f docker-compose.yml` opts out of the override.
+
+---
+
+## Lesson 2 — Reverse proxy + horizontal scaling
+
+`nginx` is the only published service; `api` lives on the internal network.
+Because `api` has no host port, Compose can run many replicas of it.
+
+```bash
+docker compose -f docker-compose.yml up -d --scale api=3
+```
+
+Watch nginx load-balance across the 3 replicas — the `X-Served-By` header is
+the container hostname, and it changes between requests:
+
+```bash
+for i in $(seq 1 9); do curl -s -D - -o /dev/null localhost:8080/ | grep -i x-served-by; done
+```
+
+How it works (`nginx/nginx.conf`): a variable in `proxy_pass` plus Docker's
+embedded DNS resolver (`127.0.0.11`) forces nginx to re-resolve the `api`
+service name on a timer, so it round-robins across whatever replicas exist.
+
+Scaling needs the base file: the dev override publishes `:3000`, and a host
+port maps to one container, so `--scale api=3` fails while it's active.
+
+---
+
+## Lesson 3 — Observability (Prometheus + Grafana)
+
+Metrics, scraping, and dashboards are opt-in via a Compose `profile`.
+
+```bash
+docker compose -f docker-compose.yml --profile observability up -d --scale api=3
+```
+
+This adds `prometheus` (:9090), `grafana` (:3001), and `postgres-exporter`.
+
+### The app exposes metrics
+
+`src/app.js` mounts a `/metrics` endpoint via `prom-client`: default process
+metrics (CPU, memory, event-loop lag) plus a custom `http_requests_total`
+counter labelled by method and status.
+
+```bash
+curl localhost:8080/metrics | grep http_requests_total
+```
+
+Here `/metrics` is reachable through nginx for convenience. In production you'd
+scrape it on the internal network only, not expose it at the public edge.
+
+### Prometheus discovers every replica
+
+`prometheus/prometheus.yml` uses `dns_sd_configs` against the `api` service
+name. Each replica resolves to its own A record, so scaling automatically adds
+scrape targets — open http://localhost:9090/targets and you'll see one entry
+per replica, each with its own `instance` label.
+
+Try these in the Prometheus UI (http://localhost:9090):
+
+```promql
+up{job="api"}                                  # 1 per healthy replica
+sum by (instance) (rate(http_requests_total[1m]))   # per-replica traffic
+```
+
+### Grafana
+
+http://localhost:3001 — no login (anonymous admin, demo only). The datasource
+and dashboard are provisioned from `grafana/provisioning/`.
+
+---
+
+## Lesson 4 — Monitoring the database
+
+`postgres-exporter` translates Postgres internals into Prometheus metrics.
+It connects to `db` and Prometheus scrapes it as a static `postgres` job.
+
+```promql
+pg_up                                          # 1 = reachable
+pg_stat_database_numbackends{datname="books"}  # active connections
+pg_database_size_bytes{datname="books"}        # database size
+```
+
+---
+
+## The dashboard
+
+**http://localhost:3001/d/system-overview** — four rows:
+
+| Row          | Panels                                                            |
+| ------------ | ----------------------------------------------------------------- |
+| Health       | replicas up · Postgres up · request rate · error rate             |
+| API Traffic  | request rate by replica (load balancing) · by status              |
+| Node Runtime | CPU · resident memory · heap · event-loop lag p99 (per replica)   |
+| Postgres     | connections · cache hit ratio · db size · deadlocks · tx · tuples |
+
+Generate some load and watch it move:
+
+```bash
+for i in $(seq 1 200); do curl -s -o /dev/null localhost:8080/books; done
+for i in $(seq 1 20);  do curl -s -o /dev/null localhost:8080/nope;  done   # 404s
+```
+
+"Request rate by replica" splits three ways; the error-rate panel reflects the
+404s.
+
+---
+
+## Lesson 5 — Load testing with k6
+
+The curl loops above nudge the dashboard; [k6](https://k6.io) drives real
+concurrent load and reports latency percentiles and error rates.
+
+`load-test.js` ramps to 1000 virtual users, hitting `GET /books` every
+iteration with a 20% chance of a `POST /books`. It targets the nginx edge, so
+load spreads across all `api` replicas.
+
+```bash
+docker compose -f docker-compose.yml --profile observability up -d --scale api=3
+k6 run load-test.js                                  # or: -e BASE_URL=http://localhost:8080
+```
+
+Two `thresholds` make the run pass/fail: `<1%` errors and `p95 < 500ms`. k6
+exits non-zero if either breaks — useful in CI.
+
+Watch the Grafana dashboard while it runs: request rate climbs, splits three
+ways across replicas, and event-loop lag / Postgres connections react to the
+pressure.
+
+At 1000 VUs the bottleneck is usually *not* the app: raise the client's file
+descriptor limit (`ulimit -n 65535`) and remember the Postgres pool caps
+connections well below 1000, so writes queue there first.
+
+---
+
+## Teardown
+
+```bash
+docker compose -f docker-compose.yml --profile observability down -v
+```
+
+`-v` removes the Postgres data volume. Grafana keeps no volume; its config is
+provisioned from files.
+
+---
+
+## Cheat sheet
+
+| Goal                    | Command                                                                            |
+| ----------------------- | ---------------------------------------------------------------------------------- |
+| Dev with live reload    | `docker compose up`                                                                |
+| Prod-like               | `docker compose -f docker-compose.yml up`                                          |
+| Scale the API           | `docker compose -f docker-compose.yml up -d --scale api=3`                         |
+| Full stack + monitoring | `docker compose -f docker-compose.yml --profile observability up -d --scale api=3` |
+| Load test (1000 VUs)    | `k6 run load-test.js`                                                              |
+| Tear everything down    | `docker compose -f docker-compose.yml --profile observability down -v`             |
