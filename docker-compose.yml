@@ -11,7 +11,9 @@ services:
       - api
 
   api:
-    build: .
+    build:
+      context: .
+      dockerfile: Dockerfile.Book
     # No host port: traffic enters through nginx, and leaving it unpublished
     # is what lets `--scale api=N` run multiple replicas.
     environment:
